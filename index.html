@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Syne', sans-serif; background: #0e0e0f; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+  .container { width: 100%; max-width: 420px; text-align: center; }
+  h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.04em; color: #f0ece0; margin-bottom: 0.2rem; }
+  .tagline { font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.18em; color: #555; text-transform: uppercase; margin-bottom: 2rem; }
+  .scoreboard { display: flex; margin-bottom: 1.8rem; border: 1px solid #222; border-radius: 12px; overflow: hidden; }
+  .score-cell { flex: 1; padding: 0.9rem 0.5rem; background: #141415; }
+  .score-cell + .score-cell { border-left: 1px solid #222; }
+  .score-label { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.16em; color: #555; text-transform: uppercase; margin-bottom: 4px; }
+  .score-num { font-size: 1.7rem; font-weight: 800; color: #f0ece0; }
+  .x-cell .score-num { color: #e06c3a; }
+  .o-cell .score-num { color: #5ba8f5; }
+  .draw-cell .score-num { color: #888; }
+  .mode-row { display: flex; gap: 8px; margin-bottom: 1.4rem; justify-content: center; }
+  .mode-btn { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 7px 18px; border-radius: 6px; border: 1px solid #2a2a2a; background: transparent; color: #555; cursor: pointer; transition: all 0.15s; }
+  .mode-btn.active { border-color: #444; background: #1e1e1f; color: #c0baa8; }
+  .mode-btn:hover:not(.active) { border-color: #333; color: #888; }
+  .turn-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.15em; color: #444; text-transform: uppercase; margin-bottom: 1rem; height: 1.2em; }
+  .turn-label span { color: #888; }
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 1.4rem; background: #161617; border-radius: 14px; padding: 6px; border: 1px solid #1e1e1f; }
+  .cell { background: #0e0e0f; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 2.6rem; font-weight: 800; cursor: pointer; transition: background 0.1s, transform 0.08s; border: 1px solid #1c1c1d; user-select: none; aspect-ratio: 1; }
+  .cell:hover:not(.taken) { background: #191919; border-color: #2a2a2a; }
+  .cell:active:not(.taken) { transform: scale(0.95); }
+  .cell.taken { cursor: default; }
+  .cell .mark { display: inline-block; animation: popIn 0.18s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+  .x-mark .mark { color: #e06c3a; }
+  .o-mark .mark { color: #5ba8f5; }
+  .winning-cell.x-mark { background: #1f1410; border-color: #5a3020; }
+  .winning-cell.o-mark { background: #0e1620; border-color: #1a3660; }
+  @keyframes popIn { 0%{transform:scale(0) rotate(-10deg);opacity:0} 100%{transform:scale(1) rotate(0);opacity:1} }
+  .status-bar { font-size: 1rem; font-weight: 700; color: #f0ece0; margin-bottom: 1.4rem; height: 1.5em; }
+  .status-bar.x-wins { color: #e06c3a; }
+  .status-bar.o-wins { color: #5ba8f5; }
+  .status-bar.draw { color: #666; }
+  .reset-btn { font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; padding: 11px 28px; border-radius: 8px; border: 1px solid #2e2e2f; background: #141415; color: #888; cursor: pointer; transition: all 0.15s; }
+  .reset-btn:hover { background: #1c1c1d; border-color: #3a3a3c; color: #c0baa8; }
+  .reset-btn:active { transform: scale(0.97); }
+
+  .win-overlay { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); border-radius: 14px; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+  .win-overlay.show { display: flex; animation: fadeIn 0.3s ease both; }
+  @keyframes fadeIn { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+  .win-emoji { font-size: 3rem; margin-bottom: 0.5rem; }
+  .win-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.3rem; }
+  .win-sub { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.15em; color: #666; text-transform: uppercase; }
+  .board-wrap { position: relative; margin-bottom: 1.4rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Tic&#8209;Tac&#8209;Toe</h1>
+  <p class="tagline">vs human · vs machine</p>
+
+  <div class="scoreboard">
+    <div class="score-cell x-cell">
+      <div class="score-label">X</div>
+      <div class="score-num" id="numX">0</div>
+    </div>
+    <div class="score-cell draw-cell">
+      <div class="score-label">Draw</div>
+      <div class="score-num" id="numD">0</div>
+    </div>
+    <div class="score-cell o-cell">
+      <div class="score-label">O</div>
+      <div class="score-num" id="numO">0</div>
+    </div>
+  </div>
+
+  <div class="mode-row">
+    <button class="mode-btn active" id="btnHuman" onclick="setMode('human')">2 Players</button>
+    <button class="mode-btn" id="btnEasy" onclick="setMode('easy')">Easy AI</button>
+    <button class="mode-btn" id="btnHard" onclick="setMode('hard')">Hard AI</button>
+  </div>
+
+  <div class="turn-label" id="turnLabel">turn: <span>X</span></div>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="cell" onclick="handleClick(0)"><span class="mark" id="c0"></span></div>
+      <div class="cell" onclick="handleClick(1)"><span class="mark" id="c1"></span></div>
+      <div class="cell" onclick="handleClick(2)"><span class="mark" id="c2"></span></div>
+      <div class="cell" onclick="handleClick(3)"><span class="mark" id="c3"></span></div>
+      <div class="cell" onclick="handleClick(4)"><span class="mark" id="c4"></span></div>
+      <div class="cell" onclick="handleClick(5)"><span class="mark" id="c5"></span></div>
+      <div class="cell" onclick="handleClick(6)"><span class="mark" id="c6"></span></div>
+      <div class="cell" onclick="handleClick(7)"><span class="mark" id="c7"></span></div>
+      <div class="cell" onclick="handleClick(8)"><span class="mark" id="c8"></span></div>
+    </div>
+    <div class="win-overlay" id="winOverlay">
+      <div class="win-emoji" id="winEmoji"></div>
+      <div class="win-title" id="winTitle"></div>
+      <div class="win-sub" id="winSub"></div>
+    </div>
+  </div>
+
+  <div class="status-bar" id="status"></div>
+  <button class="reset-btn" onclick="resetGame()">New Game</button>
+</div>
+
+<script>
+  const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  let board = Array(9).fill(null);
+  let current = 'X';
+  let gameOver = false;
+  let mode = 'human';
+  let scores = {X:0, O:0, D:0};
+  const cells = document.querySelectorAll('.cell');
+
+  const winMessages = {
+    X: { emoji: '💔', title: 'Your Ex Wins!', sub: 'they always win, don\'t they?' },
+    O: { emoji: '😈', title: 'Your Ex Wins!', sub: 'moving on was a lie...' },
+    D: { emoji: '😐', title: 'It\'s a Draw!', sub: 'just like your relationship' }
+  };
+
+  function setMode(m) {
+    mode = m;
+    ['Human','Easy','Hard'].forEach(x => document.getElementById('btn'+x).classList.remove('active'));
+    const map = {human:'Human', easy:'Easy', hard:'Hard'};
+    document.getElementById('btn'+map[m]).classList.add('active');
+    resetGame();
+  }
+
+  function handleClick(i) {
+    if (gameOver || board[i]) return;
+    if (mode !== 'human' && current === 'O') return;
+    place(i, current);
+    if (!gameOver && mode !== 'human') setTimeout(aiMove, 320);
+  }
+
+  function place(i, mark) {
+    board[i] = mark;
+    cells[i].classList.add('taken', mark.toLowerCase()+'-mark');
+    document.getElementById('c'+i).textContent = mark;
+    checkResult();
+    if (!gameOver) {
+      current = current === 'X' ? 'O' : 'X';
+      updateTurnLabel();
+    }
+  }
+
+  function updateTurnLabel() {
+    document.getElementById('turnLabel').innerHTML = 'turn: <span>'+current+'</span>';
+  }
+
+  function checkResult() {
+    for (const [a,b,c] of wins) {
+      if (board[a] && board[a]===board[b] && board[b]===board[c]) {
+        endGame(board[a], [a,b,c]); return;
+      }
+    }
+    if (board.every(x=>x)) endGame(null, []);
+  }
+
+  function endGame(winner, line) {
+    gameOver = true;
+    document.getElementById('turnLabel').innerHTML = '';
+    if (winner) {
+      line.forEach(i => cells[i].classList.add('winning-cell'));
+      scores[winner]++;
+      showOverlay(winner);
+    } else {
+      scores.D++;
+      showOverlay(null);
+    }
+    document.getElementById('numX').textContent = scores.X;
+    document.getElementById('numO').textContent = scores.O;
+    document.getElementById('numD').textContent = scores.D;
+  }
+
+  function showOverlay(winner) {
+    const overlay = document.getElementById('winOverlay');
+    const key = winner || 'D';
+    const msg = winMessages[key];
+    document.getElementById('winEmoji').textContent = msg.emoji;
+    document.getElementById('winTitle').textContent = msg.title;
+    document.getElementById('winTitle').style.color = winner === 'X' ? '#e06c3a' : winner === 'O' ? '#5ba8f5' : '#666';
+    document.getElementById('winSub').textContent = msg.sub;
+    overlay.classList.add('show');
+    const status = document.getElementById('status');
+    status.textContent = winner ? winner + ' wins!' : 'draw!';
+    status.className = 'status-bar ' + (winner ? winner.toLowerCase()+'-wins' : 'draw');
+  }
+
+  function resetGame() {
+    board = Array(9).fill(null);
+    current = 'X'; gameOver = false;
+    cells.forEach(c => { c.className = 'cell'; });
+    for (let i=0;i<9;i++) document.getElementById('c'+i).textContent='';
+    document.getElementById('status').textContent='';
+    document.getElementById('status').className='status-bar';
+    document.getElementById('winOverlay').classList.remove('show');
+    updateTurnLabel();
+  }
+
+  function aiMove() {
+    if (gameOver) return;
+    const idx = mode === 'hard' ? bestMove() : easyMove();
+    if (idx !== -1) place(idx, 'O');
+  }
+
+  function easyMove() {
+    const empty = board.map((v,i)=>v?-1:i).filter(x=>x!==-1);
+    if (!empty.length) return -1;
+    if (Math.random() < 0.35) return empty[Math.floor(Math.random()*empty.length)];
+    return bestMove();
+  }
+
+  function bestMove() {
+    let best=-Infinity, move=-1;
+    for (let i=0;i<9;i++) {
+      if (!board[i]) {
+        board[i]='O';
+        const v=minimax(board,0,false,-Infinity,Infinity);
+        board[i]=null;
+        if (v>best){best=v;move=i;}
+      }
+    }
+    return move;
+  }
+
+  function minimax(b,depth,isMax,alpha,beta) {
+    for (const [a,c,d] of wins) {
+      if (b[a]&&b[a]===b[c]&&b[c]===b[d]) return b[a]==='O'?(10-depth):(depth-10);
+    }
+    if (b.every(x=>x)) return 0;
+    if (isMax) {
+      let best=-Infinity;
+      for (let i=0;i<9;i++) if (!b[i]){b[i]='O';best=Math.max(best,minimax(b,depth+1,false,alpha,beta));b[i]=null;alpha=Math.max(alpha,best);if(beta<=alpha)break;}
+      return best;
+    } else {
+      let best=Infinity;
+      for (let i=0;i<9;i++) if (!b[i]){b[i]='X';best=Math.min(best,minimax(b,depth+1,true,alpha,beta));b[i]=null;beta=Math.min(beta,best);if(beta<=alpha)break;}
+      return best;
+    }
+  }
+
+  updateTurnLabel();
+</script>
+</body>
+</html>
